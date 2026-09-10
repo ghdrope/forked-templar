@@ -1,7 +1,0 @@
-{{ $other := ternary "a" "b" (eq .test "b") }}
-exclude:
-- files.{{ $other }}
-strip: 
-- .{{ required .test }}
-values:
-  n: 3

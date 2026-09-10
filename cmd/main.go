@@ -75,10 +75,15 @@ func main() {
 				fmt.Printf("[templar] ❌  failed to create output file: %v\n", err)
 				os.Exit(1)
 			}
-			defer writer.Close()
 		}
 
 		err = baseTome.Template(writer, string(content), args[0])
+		if options.Out != "" {
+			if closeErr := writer.Close(); closeErr != nil {
+				fmt.Printf("[templar] ❌  failed to close output file: %v\n", closeErr)
+				os.Exit(1)
+			}
+		}
 		if err != nil {
 			fmt.Printf("[templar] ❌  error templating file: %v\n", err)
 			os.Exit(1)

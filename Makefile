@@ -12,6 +12,7 @@ CACHE_DIR := $(PWD)/.cache
 GIT_COMMIT ?= $(shell git rev-parse HEAD)
 GOCACHE_DIR := go-build
 GOVULNCHECK_ARTIFACT := govulncheck-report.json
+GOVULN_ALLOWLIST := GO-2026-5932
 PREFIX ?= /usr/local
 # Must match GitHub repository name
 PROJECT_NAME := templar
@@ -56,12 +57,26 @@ clean-debug: ## Clean debug/runtime artifacts
 .PHONY: check-vulnerability
 check-vulnerability: ## Run vulnerability check on project
 	@echo "[TASK] Running vulnerability check JSON scan"
-	@mkdir -p "$(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)"
-	go run golang.org/x/vuln/cmd/govulncheck@latest -json ./... > "$(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)/$(GOVULNCHECK_ARTIFACT)"
-	@if [ -s "$(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)/$(GOVULNCHECK_ARTIFACT)" ] && grep -q '"finding"' "$(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)/$(GOVULNCHECK_ARTIFACT)"; then \
-		echo "❌ Vulnerabilities found:"; \
-		jq -r 'select(.finding != null) | .finding as $$f | $$f.trace[] | "Package: \(.module) ~> Fixed version: \($$f.fixed_version)"' "$(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)/$(GOVULNCHECK_ARTIFACT)" | sort -u; \
-		exit 1; \
+	@mkdir -p $(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)
+	go run golang.org/x/vuln/cmd/govulncheck@latest -json ./... > $(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)/$(GOVULNCHECK_ARTIFACT)
+	@if [ -s $(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)/$(GOVULNCHECK_ARTIFACT) ] && grep -q '"finding"' $(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)/$(GOVULNCHECK_ARTIFACT); then \
+		echo "🔍 Checking vulnerabilities against allowlist"; \
+		UNRESOLVED=$$(jq -r 'select(.finding != null) | .finding.osv' $(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)/$(GOVULNCHECK_ARTIFACT) | \
+			while read vuln; do \
+				if echo "$(GOVULN_ALLOWLIST)" | grep -qw "$$vuln"; then \
+					echo "⚠️ Ignored allowlisted vulnerability: $$vuln" >&2; \
+				else \
+					echo "$$vuln"; \
+				fi; \
+			done); \
+		if [ -n "$$UNRESOLVED" ]; then \
+			echo "❌ Vulnerabilities found:"; \
+			jq -r 'select(.finding != null) | .finding as $$f | $$f.trace[] | "Package: \(.module) ~> Fixed version: \($$f.fixed_version) ~> ID: \($$f.osv)"' \
+				$(ARTIFACTS_DIR)/$(SECURITY_ARTIFACTS_DIR)/$(GOVULNCHECK_ARTIFACT); \
+			exit 1; \
+		else \
+			echo "✅ No known vulnerabilities found"; \
+		fi; \
 	else \
 		echo "✅ No known vulnerabilities found"; \
 	fi

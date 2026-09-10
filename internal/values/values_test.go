@@ -9,12 +9,20 @@ import (
 func TestLoadAndMerge(t *testing.T) {
 	t.Run("Load values from files and merge with --set values", func(t *testing.T) {
 		// Set environment variable for substitution
-		os.Setenv("ENV_VAR", "01914634")
-		defer os.Unsetenv("ENV_VAR")
+		if err := os.Setenv("ENV_VAR", "01914634"); err != nil {
+			t.Fatalf("failed to set environment variable: %v", err)
+		}
+		defer func() {
+			if err := os.Unsetenv("ENV_VAR"); err != nil {
+				t.Errorf("failed to unset environment variable: %v", err)
+			}
+		}()
 
 		// Create temporary YAML files
 		tempDir := t.TempDir()
-		os.Chdir(tempDir)
+		if err := os.Chdir(tempDir); err != nil {
+			t.Fatalf("failed to change to temporary directory: %v", err)
+		}
 
 		file1 := "test_values1.yaml"
 		file2 := "test_values2.yaml"
@@ -76,7 +84,9 @@ config:
 
 	t.Run("Handle invalid YAML file", func(t *testing.T) {
 		tempDir := t.TempDir()
-		os.Chdir(tempDir)
+		if err := os.Chdir(tempDir); err != nil {
+			t.Fatalf("failed to change to temporary directory: %v", err)
+		}
 		invalidFile := "invalid.yaml"
 		err := os.WriteFile(invalidFile, []byte(`
 app:

@@ -138,7 +138,9 @@ values:
 			if err != nil {
 				t.Fatalf("failed to write to temp file: %v", err)
 			}
-			tempFile.Close()
+			if err := tempFile.Close(); err != nil {
+				t.Fatalf("failed to close temp file: %v", err)
+			}
 			tt.base.Source = filepath.Dir(tempDir)
 
 			tomes, err := LoadTomeFile(tempFile.Name(), &tt.base)
@@ -160,7 +162,7 @@ values:
 			}
 
 			for i, expectedTome := range tt.expected {
-				assert.Equal(t, strings.Replace(expectedTome.Target, "{{ .tempdir }}", filepath.Base(tempDir), -1), tomes[i].Target, "Target mismatch")
+				assert.Equal(t, strings.ReplaceAll(expectedTome.Target, "{{ .tempdir }}", filepath.Base(tempDir)), tomes[i].Target, "Target mismatch")
 				assert.Equal(t, expectedTome.Strip, tomes[i].Strip, "Strip mismatch")
 				assert.Equal(t, expectedTome.Include, tomes[i].Include, "Include mismatch")
 				assert.Equal(t, expectedTome.Exclude, tomes[i].Exclude, "Exclude mismatch")

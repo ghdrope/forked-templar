@@ -79,7 +79,7 @@ func findMissingTemplateKeys(tmpl *template.Template, tmplStr string, values map
 		}
 	}
 
-	walk(tmpl.Tree.Root)
+	walk(tmpl.Root)
 
 	return missing, nil
 }

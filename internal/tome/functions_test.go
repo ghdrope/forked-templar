@@ -74,7 +74,9 @@ func TestImportContentFromURL(t *testing.T) {
 // httpTestServer is a helper to start a test HTTP server returning a template
 func httpTestServer(content []byte) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(content)
+		if _, err := w.Write(content); err != nil {
+			panic(err)
+		}
 	}))
 }
 

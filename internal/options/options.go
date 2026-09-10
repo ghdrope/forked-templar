@@ -1,8 +1,6 @@
 package options
 
 import (
-	"fmt"
-
 	flag "github.com/spf13/pflag"
 )
 
@@ -24,11 +22,6 @@ var (
 	CopyPatterns    []string
 	TempPatterns    []string
 )
-
-type multiFlag []string
-
-func (m *multiFlag) String() string         { return fmt.Sprint(*m) }
-func (m *multiFlag) Set(value string) error { *m = append(*m, value); return nil }
 
 func Init() {
 	flag.BoolVarP(&ShowVersion, "version", "V", false, "Show version and exit")

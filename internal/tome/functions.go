@@ -58,9 +58,8 @@ type RenderDir struct {
 	Tome *Tome
 }
 
-func (rd *RenderDir) importContent(path string) (string, error) {
+func (rd *RenderDir) importContent(path string) (result string, err error) {
 	var content []byte
-	var err error
 
 	if u, parseErr := url.Parse(path); parseErr == nil && (u.Scheme == "http" || u.Scheme == "https") {
 		// URL path
@@ -68,7 +67,12 @@ func (rd *RenderDir) importContent(path string) (string, error) {
 		if httpErr != nil {
 			return "", fmt.Errorf("error fetching URL %s: %w", path, httpErr)
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+				result = ""
+				err = fmt.Errorf("error closing response body from %s: %w", path, closeErr)
+			}
+		}()
 		if resp.StatusCode != 200 {
 			return "", fmt.Errorf("error fetching URL %s: status %s", path, resp.Status)
 		}

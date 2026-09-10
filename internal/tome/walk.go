@@ -184,10 +184,14 @@ func (t *Tome) Render(inputPath string) error {
 			return fmt.Errorf("error creating output file: %w", err)
 		}
 		err = t.Template(outFile, string(content), inputPath)
-		outFile.Close()
-		os.Rename(outputPath+".tmp", outputPath)
+		if closeErr := outFile.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("error closing output file: %w", closeErr)
+		}
 		if err != nil {
 			return fmt.Errorf("error templating contents: %w", err)
+		}
+		if err := os.Rename(outputPath+".tmp", outputPath); err != nil {
+			return fmt.Errorf("error replacing output file: %w", err)
 		}
 	}
 

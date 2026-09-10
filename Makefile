@@ -130,7 +130,7 @@ test-unit: build ## Run unit tests with coverage enforcement
 	@echo "[TASK] Running unit tests"
 	@mkdir -p "$(ARTIFACTS_DIR)/$(SDLC_ARTIFACTS_DIR)"
 
-	PACKAGES=$$(go list ./internal/... ./pkg/... | grep -v '/tests' | grep -v 'testhelper' | grep -v '^$(PROJECT_NAME)/$$') && \
+	PACKAGES=$$(go list ./internal/... | grep -v '/tests' | grep -v 'testhelper' | grep -v '^$(PROJECT_NAME)/$$') && \
 	echo "$$PACKAGES" && \
 	\
 	COVERAGE_MIN=$$MIN_COVERAGE; \

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"templar/internal/options"
 )
 
 // Render traverses the file system starting from the specified root path.
@@ -31,7 +30,7 @@ func (t *Tome) Render(inputPath string) error {
 		return nil
 	}
 	if !t.ShouldInclude(inputPath) {
-		if options.Verbose {
+		if t.Verbose {
 			fmt.Println("[templar] Skipping:", filepath.Base(inputPath))
 		}
 		return nil
@@ -62,10 +61,10 @@ func (t *Tome) Render(inputPath string) error {
 		tomesFile := filepath.Join(inputPath, ".tome.yaml")
 		if _, err := os.Stat(tomesFile); errors.Is(err, os.ErrNotExist) {
 			// No tome file, render dir entries using the current tome
-			if options.Verbose {
+			if t.Verbose {
 				fmt.Printf("[templar] Creating directory %v %s\n", mode, outputPath)
 			}
-			if !options.DryRun {
+			if !t.DryRun {
 				err = os.MkdirAll(outputPath, mode)
 				if err != nil {
 					return fmt.Errorf("error creating output directory: %w", err)
@@ -84,14 +83,14 @@ func (t *Tome) Render(inputPath string) error {
 				return fmt.Errorf("failed to load tomes from %s: %w", tomesFile, err)
 			}
 			for _, subTome := range subTomes {
-				if options.Verbose {
+				if t.Verbose {
 					b, _ := json.MarshalIndent(subTome, "", "  ")
 					fmt.Printf("[templar] Tome %s\n", string(b))
 				}
-				if options.Verbose {
+				if t.Verbose {
 					fmt.Printf("[templar] Creating directory %v %s\n", subTome.Mode, subTome.Target)
 				}
-				if !options.DryRun {
+				if !t.DryRun {
 					err = os.MkdirAll(subTome.Target, mode)
 					if err != nil {
 						return fmt.Errorf("error creating output directory: %w", err)
@@ -114,7 +113,7 @@ func (t *Tome) Render(inputPath string) error {
 	symlink := (info.Mode() & os.ModeSymlink) != 0
 	copy := t.shouldCopy(inputPath)
 
-	if options.Verbose {
+	if t.Verbose {
 		if symlink {
 			fmt.Printf("[templar] Recreating symlink %s -> %s\n", inputPath, outputPath)
 		} else if copy {
@@ -124,7 +123,7 @@ func (t *Tome) Render(inputPath string) error {
 		}
 	}
 
-	if options.DryRun {
+	if t.DryRun {
 		return nil
 	}
 
@@ -135,7 +134,7 @@ func (t *Tome) Render(inputPath string) error {
 
 	// Check if the output file already exists and handle it based on the options
 	if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) &&
-		!options.Force && !confirmOverwrite(outputPath) {
+		!t.Force && !confirmOverwrite(outputPath) {
 		return nil
 	}
 
@@ -151,8 +150,8 @@ func (t *Tome) Render(inputPath string) error {
 		}
 
 		// Remove existing symlink if it exists and force option is set
-		if _, err := os.Lstat(outputPath); err == nil && options.Force {
-			if options.Verbose {
+		if _, err := os.Lstat(outputPath); err == nil && t.Force {
+			if t.Verbose {
 				fmt.Printf("[templar] Removing existing symlink %s\n", outputPath)
 			}
 			if err := os.Remove(outputPath); err != nil {

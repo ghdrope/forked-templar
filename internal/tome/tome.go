@@ -15,6 +15,10 @@ type Tome struct {
 	Source  string         `json:"source"`
 	Target  string         `json:"target"`
 	Mode    os.FileMode    `json:"mode"`
+	Strict  bool           `json:"strict"`
+	DryRun  bool           `json:"dryRun"`
+	Verbose bool           `json:"verbose"`
+	Force   bool           `json:"force"`
 	Strip   []string       `json:"strip"`
 	Include []string       `json:"include"`
 	Exclude []string       `json:"exclude"`

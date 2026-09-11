@@ -21,7 +21,7 @@ RUN go mod download
 
 COPY cmd ./cmd
 COPY internal ./internal
-COPY pkg ./pkg
+# COPY pkg ./pkg # Uncomment when pkg exists
 
 RUN mkdir -p /out
 RUN --mount=type=cache,target=/go/pkg/mod \

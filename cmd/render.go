@@ -13,12 +13,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// newTemplarCommand creates the "render" subcommand.
+// newRenderCommand creates the "render" subcommand.
 //
 // The render command is responsible for loading configuration,
 // creating the base tome and rendering either a single file
 // or an entire directory.
-func newTemplarCommand() *cobra.Command {
+func newRenderCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "render <input dir/file>",

@@ -177,12 +177,13 @@ func required(v any) (any, error) {
 
 func (t *Tome) funcMap(dir string) template.FuncMap {
 	funcMap := sprig.TxtFuncMap()
+
 	rd := &RenderDir{
 		Dir:  dir,
 		Tome: t,
 	}
-	funcMap["include"] = rd.importContent
 
+	funcMap["include"] = rd.importContent
 	funcMap["seq"] = seq
 	funcMap["toToml"] = toToml
 	funcMap["fromToml"] = fromToml

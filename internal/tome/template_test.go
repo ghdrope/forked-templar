@@ -2,13 +2,10 @@ package tome
 
 import (
 	"bytes"
-	"errors"
 	"strings"
 	"testing"
 	"text/template"
 	"text/template/parse"
-
-	"templar/internal/options"
 )
 
 func TestTemplate_AllKeysPresent(t *testing.T) {
@@ -31,21 +28,20 @@ func TestTemplate_AllKeysPresent(t *testing.T) {
 }
 
 func TestTemplate_MissingKey_NonStrict(t *testing.T) {
-	origStrict := options.Strict
-	options.Strict = false
-	defer func() { options.Strict = origStrict }()
-
 	tome := Tome{
 		Values: map[string]interface{}{
 			"Name": "World",
 		},
+		Strict: false,
 	}
+
 	var buf bytes.Buffer
 	templateText := "Hello, {{.Name}}!"
 	err := tome.Template(&buf, templateText, "test.tmpl")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	// The output will be "Hello, <no value>!"
 	got := buf.String()
 	if !strings.Contains(got, "Hello,") {
@@ -54,23 +50,23 @@ func TestTemplate_MissingKey_NonStrict(t *testing.T) {
 }
 
 func TestTemplate_MissingKey_Strict(t *testing.T) {
-	origStrict := options.Strict
-	options.Strict = true
-	defer func() { options.Strict = origStrict }()
-
 	tome := Tome{
 		Values: map[string]interface{}{
-			"name": "World",
+			"Name": "World",
 		},
+		Strict: true,
 	}
 
 	var buf bytes.Buffer
-	templateText := "Hello, {{.Name}}!"
+	templateText := "Hello, {{.MissingKey}}!"
+
 	err := tome.Template(&buf, templateText, "test.tmpl")
+
 	if err == nil {
 		t.Fatal("expected error for missing key in strict mode, got nil")
 	}
-	if !errors.Is(err, errors.New("missing template keys not allowed in strict mode")) && !strings.Contains(err.Error(), "missing template keys not allowed in strict mode") {
+
+	if !strings.Contains(err.Error(), "missing template keys not allowed in strict mode") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
-	"templar/internal/options"
 	"text/template"
 	"text/template/parse"
 )
@@ -25,7 +24,7 @@ func (t *Tome) Template(writer io.Writer, text string, name string) error {
 		for _, missingKey := range missingTemplateKeys {
 			fmt.Printf("[templar] ⚠️  %s:%d:%d missing key '%s'\n", name, missingKey.Line, missingKey.Column, missingKey.Name)
 		}
-		if options.Strict {
+		if t.Strict {
 			return errors.New("missing template keys not allowed in strict mode")
 		}
 	}

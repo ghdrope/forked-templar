@@ -6,9 +6,12 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/bmatcuk/doublestar/v4 v4.10.0
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.12.1
+	go.uber.org/zap v1.28.0
 	gopkg.in/yaml.v3 v3.0.1
+	sigs.k8s.io/controller-runtime v0.25.0
 )
 
 require (
@@ -17,10 +20,12 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 )

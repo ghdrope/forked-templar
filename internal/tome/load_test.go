@@ -9,8 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLoad(t *testing.T) {
-
+// TestLoadTomeFile verifies that Tome configurations are correctly loaded
+// from single and multiple Tome YAML configurations.
+func TestLoadTomeFile(t *testing.T) {
 	tests := []struct {
 		name        string
 		fileContent string
@@ -19,11 +20,11 @@ func TestLoad(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "Valid multiple tomes",
+			name: "valid multiple tomes",
 			fileContent: `
 - target: "custom-target1"
-  strip: 
-  - "custom-strip"
+  strip:
+    - "custom-strip"
   include: ["custom-include"]
   values:
     key: "custom-value"
@@ -50,14 +51,13 @@ func TestLoad(t *testing.T) {
 					Values:  map[string]any{"key": "custom-value2"},
 				},
 			},
-			expectError: false,
 		},
 		{
-			name: "Valid single tome",
+			name: "valid single tome",
 			fileContent: `
 target: "custom-target"
-strip: 
-- "custom-strip"
+strip:
+  - "custom-strip"
 include: ["custom-include"]
 values:
   key: "custom-value"
@@ -73,10 +73,9 @@ values:
 					Values:  map[string]any{"key": "custom-value"},
 				},
 			},
-			expectError: false,
 		},
 		{
-			name: "Empty tome inherits base",
+			name: "empty tome inherits base",
 			fileContent: `
 - {}
 `,
@@ -96,32 +95,28 @@ values:
 					Values:  map[string]any{"key": "value"},
 				},
 			},
-			expectError: false,
 		},
 		{
-			name: "Invalid YAML",
+			name: "invalid YAML",
 			fileContent: `
 - target: "custom-target
 `,
-			expected:    nil,
 			expectError: true,
 		},
 		{
-			name: "Include and exclude conflict",
+			name: "include and exclude conflict",
 			fileContent: `
 - include: ["include-pattern"]
   exclude: ["exclude-pattern"]
 `,
-			expected:    nil,
 			expectError: true,
 		},
 		{
-			name: "Copy and temp conflict",
+			name: "copy and temp conflict",
 			fileContent: `
 - copy: ["copy-pattern"]
   temp: ["temp-pattern"]
 `,
-			expected:    nil,
 			expectError: true,
 		},
 	}
@@ -129,48 +124,114 @@ values:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tempDir := t.TempDir()
-			tempFile, err := os.CreateTemp(tempDir, ".tome.yaml")
-			if err != nil {
-				t.Fatalf("failed to create temp file: %v", err)
-			}
+			tomeFile := createTomeTestFile(t, tempDir, tt.fileContent)
 
-			_, err = tempFile.WriteString(tt.fileContent)
-			if err != nil {
-				t.Fatalf("failed to write to temp file: %v", err)
-			}
-			if err := tempFile.Close(); err != nil {
-				t.Fatalf("failed to close temp file: %v", err)
-			}
-			tt.base.Source = filepath.Dir(tempDir)
+			base := tt.base
 
-			tomes, err := LoadTomeFile(tempFile.Name(), &tt.base)
+			// Keep the same Source semantics as the original test.
+			base.Source = filepath.Dir(tempDir)
+
+			tomes, err := LoadTomeFile(tomeFile, &base)
+
 			if tt.expectError {
 				if err == nil {
-					t.Errorf("expected an error but got none")
+					t.Fatal("expected an error, got nil")
 				}
+
 				return
 			}
 
 			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
+				t.Fatalf("unexpected error: %v", err)
 			}
 
 			if len(tomes) != len(tt.expected) {
-				t.Errorf("expected %d tomes, got %d", len(tt.expected), len(tomes))
-				return
+				t.Fatalf(
+					"expected %d tomes, got %d",
+					len(tt.expected),
+					len(tomes),
+				)
 			}
 
-			for i, expectedTome := range tt.expected {
-				assert.Equal(t, strings.ReplaceAll(expectedTome.Target, "{{ .tempdir }}", filepath.Base(tempDir)), tomes[i].Target, "Target mismatch")
-				assert.Equal(t, expectedTome.Strip, tomes[i].Strip, "Strip mismatch")
-				assert.Equal(t, expectedTome.Include, tomes[i].Include, "Include mismatch")
-				assert.Equal(t, expectedTome.Exclude, tomes[i].Exclude, "Exclude mismatch")
-				assert.Equal(t, expectedTome.Copy, tomes[i].Copy, "Copy mismatch")
-				assert.Equal(t, expectedTome.Temp, tomes[i].Temp, "Temp mismatch")
-				delete(tomes[i].Values, "__tome__") // Ignore __tome__ key for comparison
-				assert.Equal(t, expectedTome.Values, tomes[i].Values, "Values mismatch")
+			for i, expected := range tt.expected {
+				assertTomeEqual(
+					t,
+					expected,
+					tomes[i],
+					filepath.Base(tempDir),
+				)
 			}
 		})
 	}
+}
+
+// createTomeTestFile creates a temporary Tome YAML file in the provided
+// directory and returns its path.
+func createTomeTestFile(
+	t *testing.T,
+	dir string,
+	content string,
+) string {
+	t.Helper()
+
+	file, err := os.CreateTemp(dir, ".tome.yaml")
+	if err != nil {
+		t.Fatalf("failed to create temp Tome file: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = os.Remove(file.Name())
+	})
+
+	if _, err := file.WriteString(content); err != nil {
+		t.Fatalf("failed to write Tome file: %v", err)
+	}
+
+	if err := file.Close(); err != nil {
+		t.Fatalf("failed to close Tome file: %v", err)
+	}
+
+	return file.Name()
+}
+
+// assertTomeEqual compares a loaded Tome against the expected configuration,
+// ignoring the internal __tome__ value and resolving the tempdir placeholder.
+func assertTomeEqual(
+	t *testing.T,
+	expected Tome,
+	actual *Tome,
+	tempDirName string,
+) {
+	t.Helper()
+
+	expectedTarget := strings.ReplaceAll(
+		expected.Target,
+		"{{ .tempdir }}",
+		tempDirName,
+	)
+
+	assert.Equal(t, expectedTarget, actual.Target, "Target mismatch")
+	assert.Equal(t, expected.Mode, actual.Mode, "Mode mismatch")
+	assert.Equal(t, expected.Strip, actual.Strip, "Strip mismatch")
+	assert.Equal(t, expected.Include, actual.Include, "Include mismatch")
+	assert.Equal(t, expected.Exclude, actual.Exclude, "Exclude mismatch")
+	assert.Equal(t, expected.Copy, actual.Copy, "Copy mismatch")
+	assert.Equal(t, expected.Temp, actual.Temp, "Temp mismatch")
+
+	actualValues := cloneTomeValues(actual.Values)
+	delete(actualValues, "__tome__")
+
+	assert.Equal(t, expected.Values, actualValues, "Values mismatch")
+}
+
+// cloneTomeValues creates a shallow copy of a Tome values map so tests can
+// remove internal values without modifying the loaded Tome.
+func cloneTomeValues(values map[string]any) map[string]any {
+	cloned := make(map[string]any, len(values))
+
+	for key, value := range values {
+		cloned[key] = value
+	}
+
+	return cloned
 }

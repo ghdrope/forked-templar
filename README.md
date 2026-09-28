@@ -1,4 +1,6 @@
-<p align="center"><img src="https://github.com/user-attachments/assets/9a145b75-082e-4474-b1bc-b1313e8d5530" width="200" alt="Templar"/></p>
+# Forked-Templar
+
+![Templar](https://github.com/user-attachments/assets/9a145b75-082e-4474-b1bc-b1313e8d5530)
 
 Templar is a fast, lightweight templating engine for directories and files, built with Go’s text/template and Sprig.
 It lets you define how directories are generated using simple, declarative control files, enabling dynamic, repeatable, and fully configurable project structures.
@@ -14,16 +16,22 @@ Templar is ideal for generating config files, scaffolding projects, or automatin
 - Go templates + Sprig functions: Powerful templating features out of the box.
 
 ## 📦 Installation
+
 ### Download
+
 Download a prebuilt binary from the [Releases](/romosch/templar/releases).
+
 ### Clone/Build
+
 1. Clone the repository:
+
     ```bash
     git clone https://github.com/romosch/templar.git
     cd templar
     ```
 
 2. Build the binary:
+
     ```bash
     go build -o templar
     ```
@@ -53,6 +61,7 @@ templar [options] <input dir/file>
 - `-V`, `--version` Show version and exit
 
 ### 🧾 Tomes
+
 A Tome is a special YAML file (`.tome.yaml`) placed inside any template directory.
 It acts as a blueprint for rendering, telling Templar how the contents of that directory should be processed and where the generated outputs should be written.
 
@@ -61,7 +70,9 @@ Tomes enable local control and dynamic generation. A single template directory c
 Tome files themselves are templates. Before being evaluated, a .tome.yaml is rendered just like any other file — allowing using input variables, conditional logic, and Sprig functions to control how the directory behaves based on the provided values.
 
 #### Properties
+
 A .tome.yaml file can be composed of a single tome, or a list of them, each with the following properties:
+
 | Property  | Type          | Description                                                                 | Default          |
 |-----------|---------------|-----------------------------------------------------------------------------|------------------|
 | `mode`    | `string`      | Octal/symbolic file-mode specifying rendered files type and permissions     | Same as template |
@@ -71,36 +82,47 @@ A .tome.yaml file can be composed of a single tome, or a list of them, each with
 | `exclude` | `[]string`    | Glob patterns of files to exclude (can be repeated)                         | None             |
 | `copy`    | `[]string`    | Glob patterns for files to copy without templating (can be repeated)        | None             |
 | `temp`    | `[]string`    | Glob patterns for files to template; others copied                          | All              |
-| `values`  | `map[string]` | Key-value map containing the (default) values for rendering. Overwritten by higher-level values | None |
+| `values`  | `map[string]` | Default values for rendering, overridden by higher-level values                          | None             |
 
 ### Templates
-Templar uses Go's [text/template](https://pkg.go.dev/text/template) extended with functions from [sprig](https://masterminds.github.io/sprig) 
+
+Templar uses Go's [text/template](https://pkg.go.dev/text/template) extended with functions from [sprig](https://masterminds.github.io/sprig)
 and the following custom functions:
+
 #### `seq`
+
 Returns a slice Overrides the sprig [seq](https://masterminds.github.io/sprig/integer_slice.html) function to return a slice instead of a string.
 
 #### `include`
+
 Imports the content from another file. The imported content is templated using the same values as for the current file.
 
 #### `toYaml`
-Converts a given list, slice, array, dict, or object to YAML string. 
+
+Converts a given list, slice, array, dict, or object to YAML string.
 
 #### `fromYaml`
+
 Converts a YAML string to an iterable map object.
 
 #### `toJson`
+
 Converts a list, slice, array, dict, or object to JSON string.
 
 #### `fromJson`
+
 Converts a JSON string to an iterable map object.
 
 #### `toToml`
+
 Converts a list, slice, array, dict, or object to TOML string.
 
 #### `fromToml`
+
 Converts a TOML string to an iterable map object.
 
 #### `required`
+
 Throws an error if passed variable is undefined
 
 ## 🤝 Contributions

@@ -12,6 +12,8 @@ import (
 
 var envVarRegexp = regexp.MustCompile(`\$\{([^}]+)\}`)
 
+// LoadAndMerge loads values from YAML files, substitutes environment variables,
+// merges the files in order, and applies values provided through --set.
 func LoadAndMerge(valueFiles []string, setVals []string) (map[string]any, error) {
 	final := map[string]any{}
 
@@ -45,7 +47,12 @@ func LoadAndMerge(valueFiles []string, setVals []string) (map[string]any, error)
 	return final, nil
 }
 
-// Support nested keys like "app.name=foo"
+// setNestedValue sets a value in a nested map using a dot-separated key.
+//
+// For example, "app.name=templar" produces:
+//
+//	app:
+//		name: templar
 func setNestedValue(m map[string]any, key string, value string) {
 	keys := strings.Split(key, ".")
 	last := len(keys) - 1
@@ -56,6 +63,7 @@ func setNestedValue(m map[string]any, key string, value string) {
 			curr[k] = parseYAMLValue(value)
 			return
 		}
+
 		if next, ok := curr[k].(map[string]any); ok {
 			curr = next
 		} else {
@@ -66,7 +74,10 @@ func setNestedValue(m map[string]any, key string, value string) {
 	}
 }
 
-// Merge src into dst
+// MergeMaps recursively merges src into dst.
+//
+// Nested maps are merged recursively, while scalar values and other types
+// from src replace existing values in dst.
 func MergeMaps(dst, src map[string]any) {
 	for k, v := range src {
 		if vMap, ok := v.(map[string]any); ok {
@@ -81,9 +92,12 @@ func MergeMaps(dst, src map[string]any) {
 	}
 }
 
-// SubstituteEnvVars replaces ${VAR} with the corresponding environment variable.
-// Escaped form ${{VAR}} is preserved as literal ${VAR}.
+// SubstituteEnvVars replaces ${VAR} expressions with the corresponding
+// environment variable values.
+//
+// The escaped form ${{VAR}} is preserved as the literal ${VAR}.
 func SubstituteEnvVars(yamlContent string) string {
+
 	// Escape ${{VAR}} to a temporary placeholder
 	yamlContent = strings.ReplaceAll(yamlContent, "${{", "__ESCAPED_VAR__START__")
 	yamlContent = strings.ReplaceAll(yamlContent, "}}", "__ESCAPED_VAR__END__")
@@ -92,6 +106,7 @@ func SubstituteEnvVars(yamlContent string) string {
 	yamlContent = envVarRegexp.ReplaceAllStringFunc(yamlContent, func(m string) string {
 		key := envVarRegexp.FindStringSubmatch(m)[1]
 		value := os.Getenv(key)
+
 		// Check for integers
 		if _, err := strconv.Atoi(value); err == nil && strings.HasPrefix(value, "0") {
 			return fmt.Sprintf("\"%s\"", value)
@@ -107,11 +122,17 @@ func SubstituteEnvVars(yamlContent string) string {
 	return yamlContent
 }
 
+// parseYAMLValue converts a string value into an appropriate Go value.
+//
+// Boolean, null, integer, float, and list values are converted to their
+// corresponding Go types. Values that do not match a supported type remain
+// strings.
 func parseYAMLValue(value string) any {
 	// Check for booleans
 	if value == "true" || value == "True" {
 		return true
 	}
+
 	if value == "false" || value == "False" {
 		return false
 	}
@@ -140,9 +161,11 @@ func parseYAMLValue(value string) any {
 	if strings.HasPrefix(value, "{") && strings.HasSuffix(value, "}") {
 		trimmed := strings.Trim(value, "{}")
 		parts := strings.Split(trimmed, ",")
+
 		for i := range parts {
 			parts[i] = strings.TrimSpace(parts[i])
 		}
+
 		return parts
 	}
 

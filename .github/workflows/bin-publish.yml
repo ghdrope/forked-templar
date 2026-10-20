@@ -11,6 +11,6 @@ permissions: {}
 
 jobs:
   feat-ci-push:
-    uses: ghdrope/templates-ci/.github/workflows/go-binary_publish.yml@latest
+    uses: ghdrope/templates-ci/.github/workflows/go-binary_publish.yml@main
     permissions:
       contents: write

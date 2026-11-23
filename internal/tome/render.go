@@ -5,10 +5,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+// logOut receives Templar's diagnostic output (verbose logs, warnings and
+// prompts). It is stderr so it never mixes with content rendered to stdout.
+var logOut io.Writer = os.Stderr
+
+// stdin is read by confirmOverwrite. It is a variable so tests can replace it.
+var stdin io.Reader = os.Stdin
+
+// parentDirMode is used for parent directories that have to be created for
+// an output file and have no matching template directory.
+const parentDirMode os.FileMode = 0o755
 
 // Render processes the input path according to the Tome configuration.
 //
@@ -25,7 +37,7 @@ func (t *Tome) Render(inputPath string) error {
 
 	if !t.ShouldInclude(inputPath) {
 		if t.Verbose {
-			fmt.Println("[templar] Skipping:", filepath.Base(inputPath))
+			_, _ = fmt.Fprintln(logOut, "[templar] Skipping:", filepath.Base(inputPath))
 		}
 		return nil
 	}
@@ -41,12 +53,16 @@ func (t *Tome) Render(inputPath string) error {
 	}
 
 	mode := info.Mode().Perm()
-	if t.Mode != 0 {
-		mode = t.Mode
-	}
 
+	// Directories keep the template directory permissions: the configured
+	// mode is meant for files and would make directories unusable (e.g. 0644
+	// has no execute bit).
 	if info.IsDir() {
 		return t.renderDirectory(inputPath, outputPath, mode)
+	}
+
+	if t.Mode != 0 {
+		mode = t.Mode
 	}
 
 	return t.renderFile(inputPath, outputPath, info, mode)
@@ -78,7 +94,7 @@ func (t *Tome) renderDirectory(inputPath, outputPath string, mode os.FileMode) e
 		return fmt.Errorf("failed to load tomes from %s: %w", tomesFile, err)
 	}
 
-	return t.renderDirectoryWithSubTomes(inputPath, entries, subTomes)
+	return t.renderDirectoryWithSubTomes(inputPath, mode, entries, subTomes)
 }
 
 // renderDirectoryWithCurrentTome creates the output directory and renders
@@ -90,7 +106,7 @@ func (t *Tome) renderDirectoryWithCurrentTome(
 	entries []os.DirEntry,
 ) error {
 	if t.Verbose {
-		fmt.Printf("[templar] Creating directory %v %s\n", mode, outputPath)
+		_, _ = fmt.Fprintf(logOut, "[templar] Creating directory %v %s\n", mode, outputPath)
 	}
 
 	if !t.DryRun {
@@ -111,9 +127,11 @@ func (t *Tome) renderDirectoryWithCurrentTome(
 }
 
 // renderDirectoryWithSubTomes renders directory entries using the configured
-// sub-Tomes loaded from the directory's .tome.yaml file.
+// sub-Tomes loaded from the directory's .tome.yaml file. Each sub-Tome target
+// directory is created with the template directory mode.
 func (t *Tome) renderDirectoryWithSubTomes(
 	inputPath string,
+	mode os.FileMode,
 	entries []os.DirEntry,
 	subTomes []*Tome,
 ) error {
@@ -124,16 +142,17 @@ func (t *Tome) renderDirectoryWithSubTomes(
 				return fmt.Errorf("failed to marshal sub-tome: %w", err)
 			}
 
-			fmt.Printf("[templar] Tome %s\n", string(b))
-			fmt.Printf(
+			_, _ = fmt.Fprintf(logOut, "[templar] Tome %s\n", string(b))
+			_, _ = fmt.Fprintf(
+				logOut,
 				"[templar] Creating directory %v %s\n",
-				subTome.Mode,
+				mode,
 				subTome.Target,
 			)
 		}
 
 		if !t.DryRun {
-			if err := os.MkdirAll(subTome.Target, subTome.Mode); err != nil {
+			if err := os.MkdirAll(subTome.Target, mode); err != nil {
 				return fmt.Errorf("error creating output directory: %w", err)
 			}
 		}
@@ -169,11 +188,12 @@ func (t *Tome) renderFile(
 		return nil
 	}
 
-	if err := os.MkdirAll(filepath.Dir(outputPath), mode); err != nil {
+	if err := os.MkdirAll(filepath.Dir(outputPath), parentDirMode); err != nil {
 		return fmt.Errorf("error creating output directory: %w", err)
 	}
 
-	if _, err := os.Stat(outputPath); !errors.Is(err, os.ErrNotExist) &&
+	// Lstat, so an existing symlink counts even when its target is missing.
+	if _, err := os.Lstat(outputPath); !errors.Is(err, os.ErrNotExist) &&
 		!t.Force &&
 		!confirmOverwrite(outputPath) {
 		return nil
@@ -200,20 +220,23 @@ func (t *Tome) logFileAction(
 
 	switch {
 	case symlink:
-		fmt.Printf(
+		_, _ = fmt.Fprintf(
+			logOut,
 			"[templar] Recreating symlink %s -> %s\n",
 			inputPath,
 			outputPath,
 		)
 	case copyFile:
-		fmt.Printf(
+		_, _ = fmt.Fprintf(
+			logOut,
 			"[templar] Copying %s -> %v %s\n",
 			inputPath,
 			mode,
 			outputPath,
 		)
 	default:
-		fmt.Printf(
+		_, _ = fmt.Fprintf(
+			logOut,
 			"[templar] Templating %s -> %v %s\n",
 			inputPath,
 			mode,
@@ -222,7 +245,9 @@ func (t *Tome) logFileAction(
 	}
 }
 
-// renderSymlink recreates a symbolic link at the output path.
+// renderSymlink recreates a symbolic link at the output path. An existing
+// link is replaced: renderFile only gets here with Force or after the user
+// confirmed the overwrite.
 func (t *Tome) renderSymlink(inputPath, outputPath string) error {
 	target, err := os.Readlink(inputPath)
 	if err != nil {
@@ -238,9 +263,9 @@ func (t *Tome) renderSymlink(inputPath, outputPath string) error {
 		)
 	}
 
-	if _, err := os.Lstat(outputPath); err == nil && t.Force {
+	if _, err := os.Lstat(outputPath); err == nil {
 		if t.Verbose {
-			fmt.Printf("[templar] Removing existing symlink %s\n", outputPath)
+			_, _ = fmt.Fprintf(logOut, "[templar] Removing existing symlink %s\n", outputPath)
 		}
 
 		if err := os.Remove(outputPath); err != nil {
@@ -332,12 +357,13 @@ func (t *Tome) renderTemplateFile(
 // confirmOverwrite asks the user whether an existing output file should
 // be overwritten.
 func confirmOverwrite(path string) bool {
-	fmt.Printf(
+	_, _ = fmt.Fprintf(
+		logOut,
 		"[templar] ⚠️  '%s' already exists. Overwrite? [y/N]: ",
 		path,
 	)
 
-	reader := bufio.NewReader(os.Stdin)
+	reader := bufio.NewReader(stdin)
 
 	answer, _ := reader.ReadString('\n')
 	answer = strings.ToLower(strings.TrimSpace(answer))

@@ -36,7 +36,8 @@ func (t *Tome) Template(writer io.Writer, text string, name string) error {
 
 	if len(missingTemplateKeys) > 0 {
 		for _, missingKey := range missingTemplateKeys {
-			fmt.Printf(
+			_, _ = fmt.Fprintf(
+				logOut,
 				"[templar] ⚠️  %s:%d:%d missing key '%s'\n",
 				name,
 				missingKey.Line,

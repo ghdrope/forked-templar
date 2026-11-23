@@ -1,61 +1,48 @@
+# Binary name, usually the GitHub repository name
+ARG PROJECT_NAME="templar"
+
 FROM golang:1.27 AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
-
-# Must match GitHub repository name
-ARG PROJECT_NAME="templar"
-ARG BUILD_DATE
-ARG GIT_COMMIT
-ARG VERSION
+ARG PROJECT_NAME
+# Empty for single component projects, otherwise builds cmd/<COMPONENT>
+ARG COMPONENT=""
+ARG VERSION="development"
+ARG GIT_COMMIT="none"
+ARG BUILD_DATE="unknown"
 
 ENV CGO_ENABLED=0
-ENV GOMODCACHE=/go/pkg/mod
-ENV GOCACHE=/root/.cache/go-build
-ENV VERSION=${VERSION}
 
 WORKDIR /src
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
-COPY cmd ./cmd
-COPY internal ./internal
-# COPY pkg ./pkg # Uncomment when pkg exists
+COPY . .
 
-RUN mkdir -p /out
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=${TARGETOS} \
-    GOARCH=${TARGETARCH} \
-    go build \
-      -ldflags "\
-        -s -w \
+    GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" go build -trimpath \
+      -ldflags "-s -w \
         -X github.com/ghdrope/go-version.Version=${VERSION} \
         -X github.com/ghdrope/go-version.GitCommit=${GIT_COMMIT} \
         -X github.com/ghdrope/go-version.BuildDate=${BUILD_DATE}" \
-      -o /out/${PROJECT_NAME} \
-      ./cmd  
+      -o "/out/${PROJECT_NAME}${COMPONENT:+-${COMPONENT}}" \
+      "./cmd/${COMPONENT}"
 
 
+FROM debian:trixie-slim
 
-FROM debian:trixie-backports
-
-# Must match GitHub repository name
-ARG PROJECT_NAME="templar"
-ARG VERSION
-
+ARG VERSION="development"
 ENV VERSION=${VERSION}
-# Avoid interactive prompts during apt installs
-ENV DEBIAN_FRONTEND=noninteractive
 
-# Install certificates CA
+# upgrade picks up Debian security fixes released after the base image was built
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && update-ca-certificates \
+    && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /out/${PROJECT_NAME} /usr/local/bin/${PROJECT_NAME}
-
-# ---- Execution permissions ----
-RUN chmod +x /usr/local/bin/${PROJECT_NAME}
+# Binary: /usr/local/bin/<PROJECT_NAME> or /usr/local/bin/<PROJECT_NAME>-<COMPONENT>
+COPY --from=builder /out/ /usr/local/bin/

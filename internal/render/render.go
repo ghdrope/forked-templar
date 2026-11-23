@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"templar/internal/tome"
@@ -55,6 +56,9 @@ func Render(ctx context.Context, input string, opts *Options) error {
 	}
 
 	baseTome.Strict = opts.Strict
+	baseTome.DryRun = opts.DryRun
+	baseTome.Verbose = opts.Verbose
+	baseTome.Force = opts.Force
 
 	if opts.Verbose {
 		b, err := json.MarshalIndent(baseTome, "", "  ")
@@ -85,6 +89,7 @@ func Render(ctx context.Context, input string, opts *Options) error {
 //
 // If no output file is specified, the rendered content is written
 // to stdout. Otherwise, it is written to the configured output file.
+// In dry-run mode the file is rendered but nothing is written.
 func renderFile(
 	baseTome *tome.Tome,
 	input string,
@@ -94,6 +99,13 @@ func renderFile(
 	content, err := os.ReadFile(input)
 	if err != nil {
 		return fmt.Errorf("failed to read input file: %w", err)
+	}
+
+	if opts.DryRun {
+		if err := baseTome.Template(io.Discard, string(content), input); err != nil {
+			return fmt.Errorf("error templating file: %w", err)
+		}
+		return nil
 	}
 
 	writer := os.Stdout

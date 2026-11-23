@@ -235,3 +235,66 @@ func cloneTomeValues(values map[string]any) map[string]any {
 
 	return cloned
 }
+
+// TestLoadTomeFile_InheritsRuntimeOptions verifies that tomes loaded from a
+// file keep the runtime options of the base tome.
+func TestLoadTomeFile_InheritsRuntimeOptions(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, ".tome.yaml")
+	if err := os.WriteFile(file, []byte("target: out\n"), 0o644); err != nil {
+		t.Fatalf("failed to write tome file: %v", err)
+	}
+
+	base := &Tome{Source: dir, Target: dir, Strict: true, DryRun: true, Verbose: true, Force: true}
+
+	tomes, err := LoadTomeFile(file, base)
+	if err != nil {
+		t.Fatalf("LoadTomeFile failed: %v", err)
+	}
+
+	got := tomes[0]
+	assert.True(t, got.Strict, "Strict")
+	assert.True(t, got.DryRun, "DryRun")
+	assert.True(t, got.Verbose, "Verbose")
+	assert.True(t, got.Force, "Force")
+}
+
+// TestMergeTomeValues verifies that tome values override the base values
+// without changing the base map, including nested maps.
+func TestMergeTomeValues(t *testing.T) {
+	base := map[string]any{
+		"app": map[string]any{"env": "prod"},
+		"top": "base",
+	}
+
+	merged := mergeTomeValues(base, map[string]any{
+		"app": map[string]any{"name": "one"},
+		"top": "tome",
+	})
+
+	assert.Equal(t, map[string]any{
+		"app": map[string]any{"env": "prod", "name": "one"},
+		"top": "tome",
+	}, merged)
+	assert.Equal(t, map[string]any{
+		"app": map[string]any{"env": "prod"},
+		"top": "base",
+	}, base, "base values must not change")
+
+	assert.Equal(t, map[string]any{"k": "v"}, mergeTomeValues(nil, map[string]any{"k": "v"}))
+}
+
+// TestResolveTomeTarget verifies how a tome target is resolved against the
+// directory of the tome file.
+func TestResolveTomeTarget(t *testing.T) {
+	got, err := resolveTomeTarget("/out/dir", "")
+	assert.NoError(t, err)
+	assert.Equal(t, "/out/dir", got)
+
+	got, err = resolveTomeTarget("/out/dir", "other")
+	assert.NoError(t, err)
+	assert.Equal(t, "/out/other", got)
+
+	_, err = resolveTomeTarget("/out/dir", "/abs")
+	assert.Error(t, err)
+}

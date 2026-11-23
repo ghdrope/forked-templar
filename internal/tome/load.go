@@ -137,6 +137,13 @@ func buildTomeFromConfig(
 		return nil, err
 	}
 
+	// Runtime options are not part of the Tome file, so they always come
+	// from the base Tome.
+	tome.Strict = base.Strict
+	tome.DryRun = base.DryRun
+	tome.Verbose = base.Verbose
+	tome.Force = base.Force
+
 	return tome, nil
 }
 
@@ -177,14 +184,16 @@ func applyInheritedConfig(config *Config, base *Tome) {
 
 // mergeTomeValues creates a new values map containing base values overridden
 // by values explicitly defined in the Tome configuration.
+//
+// The base values are deep copied, so a sub-Tome never changes the values of
+// its parent or of its siblings.
 func mergeTomeValues(
 	baseValues map[string]any,
 	configValues map[string]any,
 ) map[string]any {
-	mergedValues := make(map[string]any, len(baseValues))
-
-	for key, value := range baseValues {
-		mergedValues[key] = value
+	mergedValues := values.CloneMap(baseValues)
+	if mergedValues == nil {
+		mergedValues = make(map[string]any)
 	}
 
 	values.MergeMaps(mergedValues, configValues)

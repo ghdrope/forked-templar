@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -118,5 +119,119 @@ func TestLoadAndMerge_InvalidSetFormat(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected error for invalid --set format, got nil")
+	}
+}
+
+// TestLoadAndMerge_InvalidYAMLHidesContent verifies that the error for an
+// invalid values file does not include its content, which may hold secrets
+// after the env var substitution.
+func TestLoadAndMerge_InvalidYAMLHidesContent(t *testing.T) {
+	t.Setenv("TEMPLAR_TEST_SECRET", "s3cr3t")
+
+	file := filepath.Join(t.TempDir(), "values.yaml")
+	if err := os.WriteFile(file, []byte("token: ${TEMPLAR_TEST_SECRET}\nlist: [unclosed\n"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	_, err := LoadAndMerge([]string{file}, nil)
+	if err == nil {
+		t.Fatal("expected an error for invalid YAML")
+	}
+	if strings.Contains(err.Error(), "s3cr3t") {
+		t.Errorf("error leaks the file content: %v", err)
+	}
+}
+
+// TestParseYAMLValue verifies how --set values are converted.
+func TestParseYAMLValue(t *testing.T) {
+	tests := []struct {
+		in   string
+		want any
+	}{
+		{"true", true},
+		{"True", true},
+		{"false", false},
+		{"False", false},
+		{"null", nil},
+		{"~", nil},
+		{"0", 0},
+		{"42", 42},
+		{"-3", -3},
+		{"007", "007"},
+		{"0.5", 0.5},
+		{"1.5", 1.5},
+		{"inf", "inf"},
+		{"NaN", "NaN"},
+		{"{a, b}", []string{"a", "b"}},
+		{"hello", "hello"},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			if got := parseYAMLValue(tt.in); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseYAMLValue(%q) = %#v; want %#v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSubstituteEnvVars verifies the env var substitution, the ${{VAR}}
+// escape, and that other "}}" (e.g. Go templates) are left alone.
+func TestSubstituteEnvVars(t *testing.T) {
+	t.Setenv("TEMPLAR_TEST_FOO", "bar")
+	t.Setenv("TEMPLAR_TEST_ZERO", "0")
+	t.Setenv("TEMPLAR_TEST_PAD", "007")
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"variable", "a: ${TEMPLAR_TEST_FOO}", "a: bar"},
+		{"escaped", "a: ${{TEMPLAR_TEST_FOO}}", "a: ${TEMPLAR_TEST_FOO}"},
+		{"go template", `a: "{{ .x }}"`, `a: "{{ .x }}"`},
+		{"go template and variable", `a: "{{ .x }} ${TEMPLAR_TEST_FOO}"`, `a: "{{ .x }} bar"`},
+		{"zero", "a: ${TEMPLAR_TEST_ZERO}", "a: 0"},
+		{"leading zero is quoted", "a: ${TEMPLAR_TEST_PAD}", `a: "007"`},
+		{"unset", "a: ${TEMPLAR_TEST_UNSET}", "a: "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SubstituteEnvVars(tt.in); got != tt.want {
+				t.Errorf("SubstituteEnvVars(%q) = %q; want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestCloneMap verifies that the clone is deep: changing nested maps in the
+// clone does not change the original.
+func TestCloneMap(t *testing.T) {
+	if CloneMap(nil) != nil {
+		t.Error("CloneMap(nil) should be nil")
+	}
+
+	orig := map[string]any{"app": map[string]any{"env": "prod"}, "n": 1}
+	clone := CloneMap(orig)
+	clone["app"].(map[string]any)["env"] = "dev"
+	clone["n"] = 2
+
+	want := map[string]any{"app": map[string]any{"env": "prod"}, "n": 1}
+	if !reflect.DeepEqual(orig, want) {
+		t.Errorf("original changed: %v", orig)
+	}
+}
+
+// TestSetNestedValue verifies that a dotted key creates nested maps,
+// replacing a scalar on the way.
+func TestSetNestedValue(t *testing.T) {
+	m := map[string]any{"app": "scalar"}
+	setNestedValue(m, "app.name", "templar")
+
+	want := map[string]any{"app": map[string]any{"name": "templar"}}
+	if !reflect.DeepEqual(m, want) {
+		t.Errorf("got %v; want %v", m, want)
 	}
 }

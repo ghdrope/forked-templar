@@ -4,7 +4,7 @@ on:
   push:
     branches-ignore:
       - personal-main
-      - 'release-*.*.*'
+      - '*.*.*-rc*'
       - personal-development
     paths:
       - 'cmd/**/*' # Trigger if any file changes in the defined directory

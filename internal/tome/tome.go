@@ -84,7 +84,7 @@ func New(
 		fileMode = parsedMode
 	}
 
-	// ENsure the values map is initialized before adding Tome metadata.
+	// Ensure the values map is initialized before adding Tome metadata.
 	if values == nil {
 		values = make(map[string]any)
 	}
@@ -173,7 +173,7 @@ func parseFileMode(modeStr string) (os.FileMode, error) {
 //
 // When include patterns are configured, only matching paths are included.
 // When exclude patterns are configured, matching paths are excluded.
-// If neither is configured, all pahts are included.
+// If neither is configured, all paths are included.
 func (t *Tome) ShouldInclude(name string) bool {
 	if len(t.Include) > 0 {
 		return t.matchPatterns(t.Include, name)
@@ -200,7 +200,7 @@ func (t *Tome) shouldCopy(name string) bool {
 	return false
 }
 
-// matchPattenrs reports whether the specified path matches any of the
+// matchPatterns reports whether the specified path matches any of the
 // supplied glob patterns.
 func (t *Tome) matchPatterns(patterns []string, name string) bool {
 	for _, pattern := range patterns {
@@ -214,7 +214,8 @@ func (t *Tome) matchPatterns(patterns []string, name string) bool {
 
 		matched, err := doublestar.PathMatch(pattern, name)
 		if err != nil {
-			fmt.Printf(
+			_, _ = fmt.Fprintf(
+				logOut,
 				"[templar] Error matching pattern %q: %v\n",
 				pattern,
 				err,

@@ -389,3 +389,44 @@ func httpTestServer(content []byte) *httptest.Server {
 		}
 	}))
 }
+
+// TestIsHTTPURL verifies which paths are treated as remote URLs.
+func TestIsHTTPURL(t *testing.T) {
+	assert.True(t, isHTTPURL("http://example.com/a"))
+	assert.True(t, isHTTPURL("https://example.com/a"))
+	assert.False(t, isHTTPURL("ftp://example.com/a"))
+	assert.False(t, isHTTPURL("relative/path.txt"))
+	assert.False(t, isHTTPURL("http://[::1"), "invalid URL")
+}
+
+// TestImportContentFromURLUnreachable verifies that a connection error is
+// returned when the remote host can't be reached.
+func TestImportContentFromURLUnreachable(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	url := server.URL
+	server.Close()
+
+	rd := &RenderDir{Dir: t.TempDir(), Tome: &Tome{}}
+	_, err := rd.importContent(url + "/missing")
+	assert.ErrorContains(t, err, "error fetching URL")
+}
+
+// TestImportContentInvalidTemplate verifies that a template error in the
+// imported content is returned.
+func TestImportContentInvalidTemplate(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "bad.tmpl"), []byte("{{ .x "), 0o644))
+
+	rd := &RenderDir{Dir: dir, Tome: &Tome{}}
+	_, err := rd.importContent("bad.tmpl")
+	assert.ErrorContains(t, err, "error templating import")
+}
+
+// TestConversionErrors verifies that values that can't be converted return
+// an error (or, for toToml, the error text).
+func TestConversionErrors(t *testing.T) {
+	_, err := toJson(make(chan int))
+	assert.Error(t, err)
+
+	assert.NotEmpty(t, toToml(42), "a non-table value can't be encoded as TOML")
+}
